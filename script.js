@@ -85,14 +85,109 @@
     var html = "";
     WC_PHOTOS.forEach(function (url, i) {
       html +=
-        '<img class="card" src="' + url + '" style="--i:' + i + '" alt="Foto do casal">';
+        '<img class="card" src="' + url + '" style="--i:' + i +
+        '" alt="Foto do casal" draggable="false">';
     });
     carousel.innerHTML = html;
+  }
+
+  // ---------- Gira o carrossel automaticamente, permite arrastar, e abre lightbox ao clicar ----------
+  function setupCarousel() {
+    var carousel = document.getElementById("photo-carousel");
+    if (!carousel || typeof WC_PHOTOS === "undefined" || WC_PHOTOS.length === 0) return;
+
+    var reduceMotion =
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    var angle = 0;
+    var speed = 360 / 34; // graus por segundo (rotação automática)
+    var isDragging = false;
+    var startX = 0;
+    var startAngle = 0;
+    var moved = 0;
+    var lastTime = null;
+
+    function frame(time) {
+      if (!isDragging && !reduceMotion) {
+        if (lastTime !== null) {
+          var dt = (time - lastTime) / 1000;
+          angle += speed * dt;
+        }
+      }
+      lastTime = time;
+      carousel.style.transform = "rotateY(" + angle + "deg)";
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    function onPointerDown(e) {
+      isDragging = true;
+      moved = 0;
+      startX = e.clientX;
+      startAngle = angle;
+      carousel.classList.add("dragging");
+      carousel.setPointerCapture && carousel.setPointerCapture(e.pointerId);
+    }
+
+    function onPointerMove(e) {
+      if (!isDragging) return;
+      var delta = e.clientX - startX;
+      moved = Math.abs(delta);
+      angle = startAngle - delta * 0.3;
+    }
+
+    function onPointerUp() {
+      isDragging = false;
+      lastTime = null;
+      carousel.classList.remove("dragging");
+    }
+
+    carousel.addEventListener("pointerdown", onPointerDown);
+    carousel.addEventListener("pointermove", onPointerMove);
+    carousel.addEventListener("pointerup", onPointerUp);
+    carousel.addEventListener("pointercancel", onPointerUp);
+
+    // clique (sem ter arrastado) abre a foto ampliada
+    carousel.addEventListener("click", function (e) {
+      if (moved > 6) return; // foi um arraste, não um clique
+      var img = e.target.closest("img.card");
+      if (img) openLightbox(img.src);
+    });
+  }
+
+  // ---------- Lightbox ----------
+  function openLightbox(src) {
+    var lb = document.getElementById("lightbox");
+    var img = document.getElementById("lightbox-img");
+    if (!lb || !img) return;
+    img.src = src;
+    lb.classList.add("is-open");
+  }
+
+  function closeLightbox() {
+    var lb = document.getElementById("lightbox");
+    if (lb) lb.classList.remove("is-open");
+  }
+
+  function setupLightbox() {
+    var lb = document.getElementById("lightbox");
+    var closeBtn = document.getElementById("lightbox-close");
+    if (!lb) return;
+    closeBtn.addEventListener("click", closeLightbox);
+    lb.addEventListener("click", function (e) {
+      if (e.target === lb) closeLightbox();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeLightbox();
+    });
   }
 
   document.addEventListener("DOMContentLoaded", function () {
     renderGifts();
     renderPhotos();
+    setupCarousel();
+    setupLightbox();
     setupScrollReveal();
   });
 })();
